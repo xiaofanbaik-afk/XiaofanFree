@@ -1,0 +1,185 @@
+-- =========================================================================
+-- INISIALISASI LINORIA LIBRARY
+-- =========================================================================
+
+-- PASTIKAN URL INI AKTIF. JIKA UI TIDAK MUNCUL, KEMUNGKINAN BESAR URL INI MATI.
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+-- Pengaturan Global Library (opsional)
+Library.ForceCheckbox = false 
+Library.ShowToggleFrameInKeybinds = true 
+
+-- Window Utama (Branding XiaoFanHub)
+local Window = Library:CreateWindow({
+	Title = "XiaoFan Hub",
+	Footer = "version: Fish Go",
+	Icon = 95816097006870, 
+	NotifySide = "Right",
+	ShowCustomCursor = true,
+})
+
+local Tabs = {
+	Main = Window:AddTab("Main", "fish"), 
+	Teleport = Window:AddTab("Teleport", "map"),
+	MISC = Window:AddTab("MISC", "settings-2"),
+	Settings = Window:AddTab("Settings", "settings"),
+	Keybinds = Window:AddKeyTab("Keybinds"), 
+}
+
+-- Definisi Service dan Remote Functions/Events
+local Player = game.Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local EventsFolder = ReplicatedStorage:FindFirstChild("Modules"):FindFirstChild("Utility"):FindFirstChild("Network"):FindFirstChild("Events")
+local FunctionsFolder = ReplicatedStorage:FindFirstChild("Modules"):FindFirstChild("Utility"):FindFirstChild("Network"):FindFirstChild("Functions")
+
+-- Remote Functions/Events
+local RemoteEvent = EventsFolder and EventsFolder:FindFirstChild("RemoteEvent")
+local SellRemoteFunction = FunctionsFolder and FunctionsFolder:FindFirstChild("RemoteFunction") 
+
+-- Parameter Instan Fishing
+local LUCK_MULTIPLIER = 1.9727479638532 
+local FISHING_DELAY = 0.1
+local CATCH_DELAY = 0.1
+local FIXED_HIT_CFRAME = CFrame.new(
+    -530.642578125, 443.96801757812, -116.31665039062, 
+    -0.9087165594101, 0.27161058783531, -0.31695711612701, 
+    1.4901159417491e-08, 0.75933581590652, 0.65069895982742, 
+    0.41741359233856, 0.59130090475082, -0.69002109766006
+)
+local WATER_TARGET = game.Workspace:FindFirstChild("World"):FindFirstChild("Map"):FindFirstChild("Holder"):FindFirstChild("Water")
+
+
+-------------------------------------------------------------------------
+-- TAB MAIN: AUTOMATION
+-------------------------------------------------------------------------
+
+local MainGroup = Tabs.Main:AddLeftGroupbox("Fishing Automation", "layers-3")
+local SoonGroup = Tabs.Main:AddRightGroupbox("Upcoming", "package-plus")
+
+-- 1. INSTAN FISHING (Toggle)
+MainGroup:AddToggle("InstanFishingToggle", {
+	Text = "Instan Fishing",
+	Tooltip = "Mengaktifkan pancing cepat tanpa menunggu.",
+	Default = false,
+})
+
+-- 2. AUTO SELL BACKPACK (Toggle)
+MainGroup:AddToggle("SellBackpackToggle", {
+	Text = "Auto Sell Backpack",
+	Tooltip = "Otomatis menjual isi ransel secara berkala.",
+	Default = false,
+})
+
+-- SOON
+SoonGroup:AddLabel("SOON")
+SoonGroup:AddLabel("Fitur tambahan akan segera hadir di sini.", true)
+
+-- Logika Callback (untuk logging/debug)
+Toggles.InstanFishingToggle:OnChanged(function(Value)
+	print("Instan Fishing Status:", Value)
+end)
+
+Toggles.SellBackpackToggle:OnChanged(function(Value)
+	print("Auto Sell Backpack Status:", Value)
+end)
+
+
+-------------------------------------------------------------------------
+-- TAB TELEPORT
+-------------------------------------------------------------------------
+
+local TeleportGroup = Tabs.Teleport:AddLeftGroupbox("Quick Area Teleport", "navigation")
+local TeleportLocations = {
+    -- Nama = { Vector3, Deskripsi }
+    ["Fisherman Island"] = {Vector3.new(-568.3, 451, -246.2), "Koordinat: -568.3, 451, -246.2"},
+    ["Island 2 (Luar)"] = {Vector3.new(-1152.1, 453.7, 285.6), "Koordinat: -1152.1, 453.7, 285.6"},
+    ["Island 2 (Dalam)"] = {Vector3.new(-1220.3, 468.1, 354.6), "Koordinat: -1220.3, 468.1, 354.6"},
+}
+
+for Name, Data in pairs(TeleportLocations) do
+    TeleportGroup:AddButton({
+        Text = "Teleport: " .. Name,
+        Tooltip = Data[2],
+        Func = function()
+            local TargetPosition = Data[1]
+            local Character = Player.Character
+            if Character and Character:FindFirstChild("HumanoidRootPart") then
+                Character.HumanoidRootPart.CFrame = CFrame.new(TargetPosition)
+                print("Teleporting to " .. Name .. ".")
+            end
+        end
+    })
+end
+
+-------------------------------------------------------------------------
+-- TAB MISC & SETTINGS
+-------------------------------------------------------------------------
+
+local MiscGroup = Tabs.MISC:AddLeftGroupbox("Miscellaneous", "ellipsis")
+MiscGroup:AddLabel("SOON")
+MiscGroup:AddLabel("Menu ini akan diisi dengan Walkspeed, Jump Power, dan fitur utilitas lainnya.", true)
+
+local SettingsGroup = Tabs.Settings:AddLeftGroupbox("UI Settings", "menu")
+SettingsGroup:AddLabel("XiaoFan Hub Settings")
+SettingsGroup:AddButton({ 
+    Text = "Destroy UI", 
+    Risky = true, 
+    Tooltip = "Menghapus UI. Tekan F1 untuk membuka kembali.",
+    Func = function() 
+        Window:Close() 
+    end 
+})
+
+
+----------------================================================---------
+-- LOGIKA UTAMA SCRIPT (KONTROL LOOP)
+-- =========================================================================
+
+-- FUNGSI INSTAN FISHING
+local function AutoFishCycle()
+    local currentTime = os.time() + os.clock()
+    
+    RemoteEvent:FireServer( "RodActivated", { LuckMulti = LUCK_MULTIPLIER, Mouse = { Target = WATER_TARGET, Hit = FIXED_HIT_CFRAME } }, currentTime )
+    wait(CATCH_DELAY) 
+    currentTime = os.time() + os.clock()
+    RemoteEvent:FireServer( "GotFish", nil, currentTime )
+end
+
+-- FUNGSI AUTO SELL INVENTORY
+local function AutoSellInventory()
+    -- Menggunakan nilai acak kecil untuk waktu
+    local UniqueTime = os.time() + os.clock() + math.random()
+    
+    if SellRemoteFunction then
+        pcall(SellRemoteFunction.InvokeServer, SellRemoteFunction, "SellInventory", nil, UniqueTime)
+    end
+end
+
+-- LOOP KONTROL INSTAN FISHING
+task.spawn(function()
+    while true do
+        if Toggles.InstanFishingToggle.Value and RemoteEvent and WATER_TARGET then
+            pcall(AutoFishCycle)
+            wait(FISHING_DELAY) 
+        else
+            wait(0.1) -- Jeda kecil saat mati
+        end
+    end
+end)
+
+-- LOOP KONTROL AUTO SELL BACKPACK
+task.spawn(function()
+    local SELL_INTERVAL = 3 -- Jual inventaris setiap 3 detik (dapat disesuaikan)
+    while true do
+        if Toggles.SellBackpackToggle.Value and SellRemoteFunction then
+            pcall(AutoSellInventory)
+            wait(SELL_INTERVAL) 
+        else
+            wait(0.5) -- Jeda saat mati
+        end
+    end
+end)
