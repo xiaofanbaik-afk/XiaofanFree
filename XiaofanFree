@@ -37,13 +37,21 @@ local EventsFolder = ReplicatedStorage:FindFirstChild("Modules"):FindFirstChild(
 local FunctionsFolder = ReplicatedStorage:FindFirstChild("Modules"):FindFirstChild("Utility"):FindFirstChild("Network"):FindFirstChild("Functions")
 
 -- Remote Functions/Events
+-- PERUBAHAN: Menggunakan definisi RemoteEvent baru
 local RemoteEvent = EventsFolder and EventsFolder:FindFirstChild("RemoteEvent")
 local SellRemoteFunction = FunctionsFolder and FunctionsFolder:FindFirstChild("RemoteFunction") 
 
--- Parameter Instan Fishing
-local LUCK_MULTIPLIER = 1.9727479638532 
-local FISHING_DELAY = 0.1
-local CATCH_DELAY = 0.1
+-- =================================================================
+-- KONFIGURASI FISHING BARU
+-- =================================================================
+
+local LUCK_MULTIPLIER = 1.9727479638532
+
+-- Jeda antara GotFish dan RodActivated berikutnya (Diperbarui ke 0.01s)
+local FISHING_DELAY = 0.01 
+-- Jeda antara RodActivated dan GotFish (Diperbarui ke 0.01s)
+local CATCH_DELAY = 0.01
+
 local FIXED_HIT_CFRAME = CFrame.new(
     -530.642578125, 443.96801757812, -116.31665039062, 
     -0.9087165594101, 0.27161058783531, -0.31695711612701, 
@@ -63,7 +71,7 @@ local SoonGroup = Tabs.Main:AddRightGroupbox("Upcoming", "package-plus")
 -- 1. INSTAN FISHING (Toggle)
 MainGroup:AddToggle("InstanFishingToggle", {
 	Text = "Instan Fishing",
-	Tooltip = "Mengaktifkan pancing cepat tanpa menunggu.",
+	Tooltip = "Mengaktifkan pancing cepat dengan delay 0.01 detik.",
 	Default = false,
 })
 
@@ -78,7 +86,7 @@ MainGroup:AddToggle("SellBackpackToggle", {
 SoonGroup:AddLabel("SOON")
 SoonGroup:AddLabel("Fitur tambahan akan segera hadir di sini.", true)
 
--- Logika Callback (untuk logging/debug)
+-- Logika Callback
 Toggles.InstanFishingToggle:OnChanged(function(Value)
 	print("Instan Fishing Status:", Value)
 end)
@@ -94,7 +102,6 @@ end)
 
 local TeleportGroup = Tabs.Teleport:AddLeftGroupbox("Quick Area Teleport", "navigation")
 local TeleportLocations = {
-    -- Nama = { Vector3, Deskripsi }
     ["Fisherman Island"] = {Vector3.new(-568.3, 451, -246.2), "Koordinat: -568.3, 451, -246.2"},
     ["Island 2 (Luar)"] = {Vector3.new(-1152.1, 453.7, 285.6), "Koordinat: -1152.1, 453.7, 285.6"},
     ["Island 2 (Dalam)"] = {Vector3.new(-1220.3, 468.1, 354.6), "Koordinat: -1220.3, 468.1, 354.6"},
@@ -139,19 +146,37 @@ SettingsGroup:AddButton({
 -- LOGIKA UTAMA SCRIPT (KONTROL LOOP)
 -- =========================================================================
 
--- FUNGSI INSTAN FISHING
+-- FUNGSI INSTAN FISHING (DIPERBARUI)
 local function AutoFishCycle()
     local currentTime = os.time() + os.clock()
     
-    RemoteEvent:FireServer( "RodActivated", { LuckMulti = LUCK_MULTIPLIER, Mouse = { Target = WATER_TARGET, Hit = FIXED_HIT_CFRAME } }, currentTime )
+    -- 1. RodActivated (Lempar Bobber)
+    RemoteEvent:FireServer(
+        "RodActivated",
+        {
+            LuckMulti = LUCK_MULTIPLIER,
+            Mouse = {
+                Target = WATER_TARGET,
+                Hit = FIXED_HIT_CFRAME
+            }
+        },
+        currentTime 
+    )
+    
     wait(CATCH_DELAY) 
+    
     currentTime = os.time() + os.clock()
-    RemoteEvent:FireServer( "GotFish", nil, currentTime )
+    
+    -- 2. GotFish (Tarik Ikan)
+    RemoteEvent:FireServer(
+        "GotFish",
+        nil, 
+        currentTime 
+    )
 end
 
 -- FUNGSI AUTO SELL INVENTORY
 local function AutoSellInventory()
-    -- Menggunakan nilai acak kecil untuk waktu
     local UniqueTime = os.time() + os.clock() + math.random()
     
     if SellRemoteFunction then
